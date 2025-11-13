@@ -29,13 +29,12 @@
         flex-wrap: wrap;
         gap: 15px;
         margin-bottom: 30px;
+        justify-content: center;
       }
 
       .dropdown {
         position: relative;
-        min-width: 200px;
-        flex: 1;
-        max-width: 300px;
+        width: 192px;
       }
 
       .dropdown-button {
@@ -47,7 +46,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 14px;
+        font-size: 16px;
         border-radius: 8px;
         transition: all 0.2s;
       }
@@ -60,6 +59,7 @@
         content: "▼";
         font-size: 10px;
         margin-left: 10px;
+        color: #125f43;
       }
 
       .dropdown.green .dropdown-button {
@@ -72,7 +72,7 @@
       }
 
       .dropdown.yellow .dropdown-button {
-        border-color: #e5dc8426;
+        border-color: #e5dc84;
         background-color: #e5dc8426;
         color: #333;
       }
@@ -110,7 +110,7 @@
       }
 
       .dropdown.yellow .dropdown-menu {
-        border-color: #e5dc8426;
+        border-color: #e5dc84;
       }
 
       .dropdown-item {
@@ -124,6 +124,11 @@
       .dropdown.green .dropdown-item.selected {
         background-color: #125f4333;
         color: #125f43;
+      }
+
+      .dropdown[data-dropdown="market"] .dropdown-item:hover,
+      .dropdown[data-dropdown="market"] .dropdown-item.selected {
+        color: #000;
       }
 
       .dropdown.yellow .dropdown-item:hover,
