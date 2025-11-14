@@ -213,6 +213,15 @@
         opacity: 1;
       }
 
+      .pagination-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .pagination-button:disabled:hover {
+        opacity: 0.5;
+      }
+
       .card {
         background-color: #125f430d;
         border: 1px solid #125f43;
@@ -362,7 +371,9 @@
       </div>
 
       <div class="cards-grid" id="cards-grid">
-        <!-- Cards will be dynamically loaded from Webflow CMS -->
+        <div style="text-align: center; padding: 40px">
+          Loading restaurants...
+        </div>
       </div>
 
       <div class="pagination">
@@ -429,29 +440,47 @@
         );
       }
 
+      // Global storage for mappings
+      let allRegions = [];
+      let allMarkets = [];
+      let cuisinesMap = new Map(); // ID -> name
+      let dietariesMap = new Map(); // ID -> name
+      let allRestaurants = [];
+      let currentPage = 1;
+      const restaurantsPerPage = 30;
+
       function createCardHTML(restaurant) {
         const name =
           restaurant.fieldData?.name || restaurant.name || "Restaurant";
-        const price = restaurant.fieldData?.price || restaurant.price || "$$";
-        const cuisines =
-          restaurant.fieldData?.cuisines || restaurant.cuisines || [];
-        const dietary =
-          restaurant.fieldData?.dietary || restaurant.dietary || "";
+        const price =
+          restaurant.fieldData?.["range-price"] ||
+          restaurant.fieldData?.price ||
+          restaurant.price ||
+          "$$";
+        const cuisineIds =
+          restaurant.fieldData?.["cusiness-category"] ||
+          restaurant.fieldData?.cuisines ||
+          [];
+        const dietaryIds =
+          restaurant.fieldData?.["dietary-category"] ||
+          restaurant.fieldData?.dietary ||
+          [];
 
-        // Handle cuisines - could be array, string, or comma-separated
-        let cuisineArray = [];
-        if (Array.isArray(cuisines)) {
-          cuisineArray = cuisines;
-        } else if (typeof cuisines === "string") {
-          cuisineArray = cuisines
-            .split(",")
-            .map((c) => c.trim())
-            .filter((c) => c);
-        }
+        // Map cuisine IDs to names
+        const cuisineNames = Array.isArray(cuisineIds)
+          ? cuisineIds.map((id) => cuisinesMap.get(id)).filter((name) => name)
+          : [];
 
-        const cuisineTags = cuisineArray
+        // Map dietary IDs to names
+        const dietaryNames = Array.isArray(dietaryIds)
+          ? dietaryIds.map((id) => dietariesMap.get(id)).filter((name) => name)
+          : [];
+
+        const cuisineTags = cuisineNames
           .map((cuisine) => `<span class="card-tag">${cuisine}</span>`)
           .join("");
+
+        const dietaryText = dietaryNames.join(", ");
 
         return `
           <div class="card">
@@ -475,14 +504,14 @@
                 : ""
             }
             ${
-              dietary
+              dietaryText
                 ? `
             <div class="card-section">
               <div class="card-section-label leaf">
                 ${leafIconSVG}
                 Dietary:
               </div>
-              <div class="card-dietary">${dietary}</div>
+              <div class="card-dietary">${dietaryText}</div>
             </div>
             `
                 : ""
@@ -490,10 +519,6 @@
           </div>
         `;
       }
-
-      // Store all regions globally
-      let allRegions = [];
-
       // Helper function to parse region name and extract market
       function parseRegionName(regionName) {
         const match = regionName.match(/^(.+?)\s*\[(.+?)\]$/);
@@ -622,14 +647,148 @@
           const regionName = region.fieldData?.name || "Region";
           const parsed = parseRegionName(regionName);
           const displayName = parsed.displayName;
-          const regionSlug = region.fieldData?.slug || region.id;
+          const regionId = region.id;
 
           const regionItem = document.createElement("div");
           regionItem.className = "dropdown-item";
-          regionItem.setAttribute("data-value", regionSlug);
+          regionItem.setAttribute("data-value", regionId);
           regionItem.textContent = displayName;
           regionsDropdown.appendChild(regionItem);
         });
+      }
+
+      function populateCuisinesDropdown(availableCuisineIds = null) {
+        const cuisinesDropdown = document.querySelector(
+          '[data-dropdown="cuisines"] .dropdown-menu'
+        );
+        if (!cuisinesDropdown) {
+          console.warn("Cuisines dropdown not found");
+          return;
+        }
+
+        // Get currently selected value
+        const selectedItem = cuisinesDropdown.querySelector(
+          ".dropdown-item.selected"
+        );
+        const selectedValue = selectedItem?.getAttribute("data-value");
+
+        const allCuisinesHTML =
+          '<div class="dropdown-item" data-value="all">Cuisines</div>';
+
+        cuisinesDropdown.innerHTML = allCuisinesHTML;
+
+        // Determine which cuisines to show
+        const cuisinesToShow =
+          availableCuisineIds && availableCuisineIds.size > 0
+            ? availableCuisineIds
+            : cuisinesMap.keys();
+
+        // Add each cuisine as a dropdown item (only if available or showing all)
+        cuisinesMap.forEach((name, id) => {
+          if (
+            !availableCuisineIds ||
+            availableCuisineIds.size === 0 ||
+            availableCuisineIds.has(id)
+          ) {
+            const cuisineItem = document.createElement("div");
+            cuisineItem.className = "dropdown-item";
+            cuisineItem.setAttribute("data-value", id);
+            cuisineItem.textContent = name;
+            cuisinesDropdown.appendChild(cuisineItem);
+          }
+        });
+
+        // Restore selection if it still exists, otherwise select "All"
+        const itemToSelect =
+          selectedValue &&
+          cuisinesDropdown.querySelector(`[data-value="${selectedValue}"]`)
+            ? selectedValue
+            : "all";
+
+        const item = cuisinesDropdown.querySelector(
+          `[data-value="${itemToSelect}"]`
+        );
+        if (item) {
+          cuisinesDropdown
+            .querySelectorAll(".dropdown-item")
+            .forEach((i) => i.classList.remove("selected"));
+          item.classList.add("selected");
+
+          // Update button text
+          const button = document.querySelector(
+            '[data-dropdown="cuisines"] .dropdown-button'
+          );
+          if (button) {
+            button.textContent = item.textContent.trim();
+          }
+        }
+      }
+
+      function populateDietariesDropdown(availableDietaryIds = null) {
+        const dietariesDropdown = document.querySelector(
+          '[data-dropdown="dietary"] .dropdown-menu'
+        );
+        if (!dietariesDropdown) {
+          console.warn("Dietaries dropdown not found");
+          return;
+        }
+
+        // Get currently selected value
+        const selectedItem = dietariesDropdown.querySelector(
+          ".dropdown-item.selected"
+        );
+        const selectedValue = selectedItem?.getAttribute("data-value");
+
+        const allDietariesHTML =
+          '<div class="dropdown-item" data-value="all">Dietary Preferences</div>';
+
+        dietariesDropdown.innerHTML = allDietariesHTML;
+
+        // Determine which dietaries to show
+        const dietariesToShow =
+          availableDietaryIds && availableDietaryIds.size > 0
+            ? availableDietaryIds
+            : dietariesMap.keys();
+
+        // Add each dietary as a dropdown item (only if available or showing all)
+        dietariesMap.forEach((name, id) => {
+          if (
+            !availableDietaryIds ||
+            availableDietaryIds.size === 0 ||
+            availableDietaryIds.has(id)
+          ) {
+            const dietaryItem = document.createElement("div");
+            dietaryItem.className = "dropdown-item";
+            dietaryItem.setAttribute("data-value", id);
+            dietaryItem.textContent = name;
+            dietariesDropdown.appendChild(dietaryItem);
+          }
+        });
+
+        // Restore selection if it still exists, otherwise select "All"
+        const itemToSelect =
+          selectedValue &&
+          dietariesDropdown.querySelector(`[data-value="${selectedValue}"]`)
+            ? selectedValue
+            : "all";
+
+        const item = dietariesDropdown.querySelector(
+          `[data-value="${itemToSelect}"]`
+        );
+        if (item) {
+          dietariesDropdown
+            .querySelectorAll(".dropdown-item")
+            .forEach((i) => i.classList.remove("selected"));
+          item.classList.add("selected");
+
+          // Update button text
+          const button = document.querySelector(
+            '[data-dropdown="dietary"] .dropdown-button'
+          );
+          if (button) {
+            button.textContent = item.textContent.trim();
+          }
+        }
       }
 
       async function loadMarkets() {
@@ -699,6 +858,9 @@
           // Clear and rebuild dropdown
           marketDropdown.innerHTML = allMarketsHTML;
 
+          // Store markets globally
+          allMarkets = marketsResponse.items;
+
           // Add each market as a dropdown item
           marketsResponse.items.forEach((market) => {
             const marketName = market.fieldData?.name || "Market";
@@ -707,6 +869,7 @@
             const marketItem = document.createElement("div");
             marketItem.className = "dropdown-item";
             marketItem.setAttribute("data-value", marketSlug);
+            marketItem.setAttribute("data-market-id", market.id);
             marketItem.setAttribute("data-market-name", marketName);
             marketItem.textContent = marketName;
             marketDropdown.appendChild(marketItem);
@@ -716,66 +879,409 @@
         }
       }
 
-      async function loadRestaurants() {
+      async function loadCuisines() {
         try {
-          const cardsGrid = document.getElementById("cards-grid");
-          cardsGrid.innerHTML =
-            '<div style="text-align: center; padding: 40px;">Loading restaurants...</div>';
-
-          // Step 1: Get sites
           const sitesResponse = await getSites();
-          if (
-            !sitesResponse ||
-            !sitesResponse.sites ||
-            sitesResponse.sites.length === 0
-          ) {
+          if (!sitesResponse?.sites?.length) {
             throw new Error("No sites found");
           }
           const siteId = sitesResponse.sites[0].id;
 
-          // Step 2: Get collections
           const collectionsResponse = await getCollections(siteId);
-          if (
-            !collectionsResponse ||
-            !collectionsResponse.collections ||
-            collectionsResponse.collections.length === 0
-          ) {
+          if (!collectionsResponse?.collections?.length) {
             throw new Error("No collections found");
           }
 
-          // Step 3: Find restaurants collection by slug
+          const cuisinesCollection = collectionsResponse.collections.find(
+            (col) =>
+              col.id === "689ab3186cf4f7e40bbad9db" ||
+              col.displayName === "Restaurants -> Cuisinesses"
+          );
+
+          if (!cuisinesCollection) {
+            console.warn("Cuisines collection not found");
+            return;
+          }
+
+          cuisinesMap.clear();
+          let offset = 0;
+          const limit = 100;
+          let hasMore = true;
+
+          while (hasMore) {
+            const response = await getCollectionItems(
+              cuisinesCollection.id,
+              offset,
+              limit
+            );
+
+            if (!response?.items?.length) {
+              hasMore = false;
+              break;
+            }
+
+            response.items.forEach((item) => {
+              const id = item.id;
+              const name = item.fieldData?.name;
+              if (id && name) {
+                cuisinesMap.set(id, name);
+              }
+            });
+
+            const pagination = response.pagination;
+            if (
+              !pagination ||
+              offset + response.items.length >= pagination.total
+            ) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
+          }
+
+          console.log(`Loaded ${cuisinesMap.size} cuisines`);
+        } catch (error) {
+          console.error("Error loading cuisines:", error);
+        }
+      }
+
+      async function loadDietaries() {
+        try {
+          const sitesResponse = await getSites();
+          if (!sitesResponse?.sites?.length) {
+            throw new Error("No sites found");
+          }
+          const siteId = sitesResponse.sites[0].id;
+
+          const collectionsResponse = await getCollections(siteId);
+          if (!collectionsResponse?.collections?.length) {
+            throw new Error("No collections found");
+          }
+
+          const dietariesCollection = collectionsResponse.collections.find(
+            (col) =>
+              col.id === "689ab2beeb9650a8d2423e5f" ||
+              col.displayName === "Restaurants -> Dietaries"
+          );
+
+          if (!dietariesCollection) {
+            console.warn("Dietaries collection not found");
+            return;
+          }
+
+          dietariesMap.clear();
+          let offset = 0;
+          const limit = 100;
+          let hasMore = true;
+
+          while (hasMore) {
+            const response = await getCollectionItems(
+              dietariesCollection.id,
+              offset,
+              limit
+            );
+
+            if (!response?.items?.length) {
+              hasMore = false;
+              break;
+            }
+
+            response.items.forEach((item) => {
+              const id = item.id;
+              const name = item.fieldData?.name;
+              if (id && name) {
+                dietariesMap.set(id, name);
+              }
+            });
+
+            const pagination = response.pagination;
+            if (
+              !pagination ||
+              offset + response.items.length >= pagination.total
+            ) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
+          }
+
+          console.log(`Loaded ${dietariesMap.size} dietaries`);
+        } catch (error) {
+          console.error("Error loading dietaries:", error);
+        }
+      }
+
+      async function loadAllRestaurants() {
+        try {
+          const sitesResponse = await getSites();
+          if (!sitesResponse?.sites?.length) {
+            throw new Error("No sites found");
+          }
+          const siteId = sitesResponse.sites[0].id;
+
+          const collectionsResponse = await getCollections(siteId);
+          if (!collectionsResponse?.collections?.length) {
+            throw new Error("No collections found");
+          }
+
           const restaurantsCollection = collectionsResponse.collections.find(
-            (col) => col.slug === "restaurant"
+            (col) =>
+              col.id === "689abab143d1746189bc92a2" || col.slug === "restaurant"
           );
 
           if (!restaurantsCollection) {
             throw new Error("Restaurants collection not found");
           }
 
-          // Step 4: Get items from collection
-          const itemsResponse = await getCollectionItems(
-            restaurantsCollection.id
-          );
+          allRestaurants = [];
+          let offset = 0;
+          const limit = 100;
+          let hasMore = true;
 
-          // Step 5: Render cards
-          if (
-            !itemsResponse ||
-            !itemsResponse.items ||
-            itemsResponse.items.length === 0
-          ) {
-            cardsGrid.innerHTML =
-              '<div style="text-align: center; padding: 40px;">No restaurants found.</div>';
-            return;
+          while (hasMore) {
+            const response = await getCollectionItems(
+              restaurantsCollection.id,
+              offset,
+              limit
+            );
+
+            if (!response?.items?.length) {
+              hasMore = false;
+              break;
+            }
+
+            allRestaurants = allRestaurants.concat(response.items);
+
+            const pagination = response.pagination;
+            if (
+              !pagination ||
+              offset + response.items.length >= pagination.total
+            ) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
           }
 
-          cardsGrid.innerHTML = itemsResponse.items
-            .map((item) => createCardHTML(item))
-            .join("");
+          console.log(`Loaded ${allRestaurants.length} restaurants`);
+          filterAndDisplayRestaurants();
         } catch (error) {
           console.error("Error loading restaurants:", error);
           const cardsGrid = document.getElementById("cards-grid");
           cardsGrid.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;">Error loading restaurants: ${error.message}</div>`;
         }
+      }
+
+      function getSelectedFilters() {
+        const marketDropdown = document.querySelector(
+          '[data-dropdown="market"] .dropdown-menu'
+        );
+        const regionDropdown = document.querySelector(
+          '[data-dropdown="regions"] .dropdown-menu'
+        );
+        const cuisineDropdown = document.querySelector(
+          '[data-dropdown="cuisines"] .dropdown-menu'
+        );
+        const dietaryDropdown = document.querySelector(
+          '[data-dropdown="dietary"] .dropdown-menu'
+        );
+
+        const selectedMarket = marketDropdown?.querySelector(
+          ".dropdown-item.selected"
+        );
+        const selectedRegion = regionDropdown?.querySelector(
+          ".dropdown-item.selected"
+        );
+        const selectedCuisine = cuisineDropdown?.querySelector(
+          ".dropdown-item.selected"
+        );
+        const selectedDietary = dietaryDropdown?.querySelector(
+          ".dropdown-item.selected"
+        );
+
+        return {
+          marketId:
+            selectedMarket?.getAttribute("data-value") === "all"
+              ? null
+              : selectedMarket?.getAttribute("data-market-id"),
+          regionId:
+            selectedRegion?.getAttribute("data-value") === "all"
+              ? null
+              : selectedRegion?.getAttribute("data-value"),
+          cuisineId:
+            selectedCuisine?.getAttribute("data-value") === "all"
+              ? null
+              : selectedCuisine?.getAttribute("data-value"),
+          dietaryId:
+            selectedDietary?.getAttribute("data-value") === "all"
+              ? null
+              : selectedDietary?.getAttribute("data-value"),
+        };
+      }
+
+      function filterAndDisplayRestaurants(resetPage = true) {
+        const filters = getSelectedFilters();
+        let filtered = [...allRestaurants];
+
+        // Filter by market (cities field)
+        if (filters.marketId) {
+          filtered = filtered.filter((restaurant) => {
+            const cities = restaurant.fieldData?.cities || [];
+            return Array.isArray(cities) && cities.includes(filters.marketId);
+          });
+        }
+
+        // Filter by region (regions-category field)
+        if (filters.regionId) {
+          filtered = filtered.filter((restaurant) => {
+            const regions = restaurant.fieldData?.["regions-category"] || [];
+            return Array.isArray(regions) && regions.includes(filters.regionId);
+          });
+        }
+
+        // Extract unique cuisine and dietary IDs from filtered restaurants
+        // (before applying cuisine/dietary filters so dropdowns show all available options)
+        const availableCuisineIds = new Set();
+        const availableDietaryIds = new Set();
+
+        filtered.forEach((restaurant) => {
+          const cuisines = restaurant.fieldData?.["cusiness-category"] || [];
+          const dietaries = restaurant.fieldData?.["dietary-category"] || [];
+
+          if (Array.isArray(cuisines)) {
+            cuisines.forEach((id) => availableCuisineIds.add(id));
+          }
+          if (Array.isArray(dietaries)) {
+            dietaries.forEach((id) => availableDietaryIds.add(id));
+          }
+        });
+
+        // Update cuisines and dietaries dropdowns to show only available options
+        populateCuisinesDropdown(availableCuisineIds);
+        populateDietariesDropdown(availableDietaryIds);
+
+        // Filter by cuisine (cusiness-category field)
+        if (filters.cuisineId) {
+          filtered = filtered.filter((restaurant) => {
+            const cuisines = restaurant.fieldData?.["cusiness-category"] || [];
+            return (
+              Array.isArray(cuisines) && cuisines.includes(filters.cuisineId)
+            );
+          });
+        }
+
+        // Filter by dietary (dietary-category field)
+        if (filters.dietaryId) {
+          filtered = filtered.filter((restaurant) => {
+            const dietaries = restaurant.fieldData?.["dietary-category"] || [];
+            return (
+              Array.isArray(dietaries) && dietaries.includes(filters.dietaryId)
+            );
+          });
+        }
+
+        // Reset to page 1 when filters change (but not when just changing pages)
+        if (resetPage) {
+          currentPage = 1;
+        }
+
+        // Calculate pagination
+        const totalPages = Math.ceil(filtered.length / restaurantsPerPage);
+        // Ensure currentPage doesn't exceed totalPages
+        if (currentPage > totalPages && totalPages > 0) {
+          currentPage = totalPages;
+        }
+        const startIndex = (currentPage - 1) * restaurantsPerPage;
+        const endIndex = startIndex + restaurantsPerPage;
+        const paginatedRestaurants = filtered.slice(startIndex, endIndex);
+
+        // Display restaurants
+        const cardsGrid = document.getElementById("cards-grid");
+        if (paginatedRestaurants.length === 0) {
+          cardsGrid.innerHTML =
+            '<div style="text-align: center; padding: 40px;">No restaurants found.</div>';
+        } else {
+          cardsGrid.innerHTML = paginatedRestaurants
+            .map((item) => createCardHTML(item))
+            .join("");
+        }
+
+        // Update pagination UI
+        updatePaginationUI(totalPages, filtered.length);
+      }
+
+      function updatePaginationUI(totalPages, totalItems) {
+        const paginationContainer = document.querySelector(".pagination");
+        if (!paginationContainer) return;
+
+        if (totalPages <= 1) {
+          paginationContainer.innerHTML = "";
+          return;
+        }
+
+        let html = `<button class="pagination-button prev" ${
+          currentPage === 1 ? "disabled" : ""
+        }>&lt;</button>`;
+
+        // Show page numbers
+        const maxVisiblePages = 7;
+        let startPage = Math.max(1, currentPage - 3);
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+          startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        if (startPage > 1) {
+          html += `<button class="pagination-button" data-page="1">1</button>`;
+          if (startPage > 2) {
+            html += `<button class="pagination-button ellipsis">...</button>`;
+          }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+          html += `<button class="pagination-button ${
+            i === currentPage ? "active" : ""
+          }" data-page="${i}">${i}</button>`;
+        }
+
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            html += `<button class="pagination-button ellipsis">...</button>`;
+          }
+          html += `<button class="pagination-button" data-page="${totalPages}">${totalPages}</button>`;
+        }
+
+        html += `<button class="pagination-button next" ${
+          currentPage === totalPages ? "disabled" : ""
+        }>&gt;</button>`;
+
+        paginationContainer.innerHTML = html;
+
+        // Add event listeners
+        paginationContainer
+          .querySelectorAll(".pagination-button")
+          .forEach((button) => {
+            if (button.disabled) return;
+
+            button.addEventListener("click", () => {
+              const page = button.getAttribute("data-page");
+              if (page) {
+                currentPage = parseInt(page);
+                filterAndDisplayRestaurants(false); // Don't reset page when paginating
+              } else if (button.classList.contains("prev")) {
+                if (currentPage > 1) {
+                  currentPage--;
+                  filterAndDisplayRestaurants(false); // Don't reset page when paginating
+                }
+              } else if (button.classList.contains("next")) {
+                if (currentPage < totalPages) {
+                  currentPage++;
+                  filterAndDisplayRestaurants(false); // Don't reset page when paginating
+                }
+              }
+            });
+          });
       }
 
       function initializeDropdownEvents() {
@@ -885,6 +1391,11 @@
                 }
               }
             }
+
+            // Filter restaurants when any filter changes
+            if (allRestaurants.length > 0) {
+              filterAndDisplayRestaurants();
+            }
           });
         });
       }
@@ -908,15 +1419,27 @@
           }
         });
 
-        // Load markets and regions from Webflow CMS
-        Promise.all([loadMarkets(), loadRegions()])
+        // Load all data from Webflow CMS
+        Promise.all([
+          loadMarkets(),
+          loadRegions(),
+          loadCuisines(),
+          loadDietaries(),
+        ])
           .then(() => {
-            console.log("Markets and regions loaded successfully");
+            console.log("Markets, regions, cuisines, and dietaries loaded");
+            // Populate cuisines and dietaries dropdowns
+            populateCuisinesDropdown();
+            populateDietariesDropdown();
+            // Load restaurants after everything else is ready
+            return loadAllRestaurants();
+          })
+          .then(() => {
+            console.log("All data loaded successfully");
           })
           .catch((error) => {
-            console.error("Failed to load markets/regions:", error);
+            console.error("Failed to load data:", error);
           });
-        // loadRestaurants(); // Disabled until restaurant API is ready
       });
     </script>
   </body>
