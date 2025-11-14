@@ -36,7 +36,7 @@
 
       .dropdown {
         position: relative;
-        width: 192px;
+        width: 196px;
         z-index: 10;
       }
 
@@ -317,6 +317,53 @@
         display: inline;
       }
 
+      .loader-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        min-height: 300px;
+        width: 100%;
+        grid-column: 1 / -1;
+      }
+
+      .empty-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        min-height: 300px;
+        width: 100%;
+        grid-column: 1 / -1;
+        text-align: center;
+        color: #666;
+        font-size: 16px;
+      }
+
+      .loader {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #125f431a;
+        border-top-color: #125f43;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loader-text {
+        color: #125f43;
+        font-size: 16px;
+        font-weight: 500;
+        text-align: center;
+      }
+
       @media (max-width: 768px) {
         .filters {
           flex-direction: column;
@@ -365,33 +412,27 @@
         </div>
 
         <div class="dropdown yellow" data-dropdown="dietary">
-          <button class="dropdown-button">Dietary Preference</button>
+          <button class="dropdown-button">Dietary Preferences</button>
           <div class="dropdown-menu"></div>
         </div>
       </div>
 
       <div class="cards-grid" id="cards-grid">
-        <div style="text-align: center; padding: 40px">
-          Loading restaurants...
+        <div class="loader-container">
+          <div class="loader"></div>
+          <div class="loader-text">Loading restaurants...</div>
         </div>
       </div>
 
-      <div class="pagination">
-        <button class="pagination-button prev">&lt;</button>
-        <button class="pagination-button active">1</button>
-        <button class="pagination-button">2</button>
-        <button class="pagination-button">3</button>
-        <button class="pagination-button">4</button>
-        <button class="pagination-button">5</button>
-        <button class="pagination-button ellipsis">...</button>
-        <button class="pagination-button">44</button>
-        <button class="pagination-button next">&gt;</button>
-      </div>
+      <div class="pagination"></div>
     </div>
 
     <script>
-      // Use proxy API instead of direct Webflow API
-      const API_BASE = "http://localhost:3000/api/webflow";
+      // Use proxy API - works in both development and production
+      const API_BASE =
+        window.location.hostname === "localhost"
+          ? "http://localhost:3000/api/webflow"
+          : "/api/webflow";
 
       // SVG icons as strings
       const potIconSVG = `<svg width="13" height="15" viewBox="0 0 13 15" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -408,6 +449,11 @@
           </clipPath>
         </defs>
       </svg>`;
+
+      // Utility function to add delay between requests
+      function delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
 
       async function fetchWebflowData(path) {
         try {
@@ -602,6 +648,8 @@
               hasMore = false;
             } else {
               offset += limit;
+              // Add delay between requests to prevent rate limiting
+              await delay(500);
             }
           }
 
@@ -936,6 +984,8 @@
               hasMore = false;
             } else {
               offset += limit;
+              // Add delay between requests to prevent rate limiting
+              await delay(500);
             }
           }
 
@@ -1002,6 +1052,8 @@
               hasMore = false;
             } else {
               offset += limit;
+              // Add delay between requests to prevent rate limiting
+              await delay(500);
             }
           }
 
@@ -1050,7 +1102,16 @@
               break;
             }
 
+            // Add new items to the array
             allRestaurants = allRestaurants.concat(response.items);
+
+            // Display restaurants immediately after each batch (streaming)
+            filterAndDisplayRestaurants();
+
+            // Log progress
+            console.log(
+              `Loaded ${allRestaurants.length} restaurants (batch of ${response.items.length})`
+            );
 
             const pagination = response.pagination;
             if (
@@ -1060,15 +1121,16 @@
               hasMore = false;
             } else {
               offset += limit;
+              // Add delay between requests to prevent rate limiting (longer delay for restaurants)
+              await delay(1000);
             }
           }
 
-          console.log(`Loaded ${allRestaurants.length} restaurants`);
-          filterAndDisplayRestaurants();
+          console.log(`Finished loading ${allRestaurants.length} restaurants`);
         } catch (error) {
           console.error("Error loading restaurants:", error);
           const cardsGrid = document.getElementById("cards-grid");
-          cardsGrid.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;">Error loading restaurants: ${error.message}</div>`;
+          cardsGrid.innerHTML = `<div class="empty-state" style="color: #d32f2f;">Error loading restaurants: ${error.message}</div>`;
         }
       }
 
@@ -1199,7 +1261,7 @@
         const cardsGrid = document.getElementById("cards-grid");
         if (paginatedRestaurants.length === 0) {
           cardsGrid.innerHTML =
-            '<div style="text-align: center; padding: 40px;">No restaurants found.</div>';
+            '<div class="empty-state">No restaurants found.</div>';
         } else {
           cardsGrid.innerHTML = paginatedRestaurants
             .map((item) => createCardHTML(item))

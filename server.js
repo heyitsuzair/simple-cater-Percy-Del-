@@ -6,6 +6,7 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const WEBFLOW_API_TOKEN =
+  process.env.WEBFLOW_API_TOKEN ||
   "aeeca164e5e58e745946f476932a6528fa93248fb7ba8402145d5f40d997d543";
 const WEBFLOW_API_BASE = "https://api.webflow.com/v2";
 
@@ -50,11 +51,17 @@ app.get("/api/webflow/*", async (req, res) => {
   }
 });
 
-// Serve the HTML file
-app.get("/", (req, res) => {
+// Serve the HTML file for all routes (SPA support)
+app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== "1") {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Export for Vercel
+module.exports = app;
