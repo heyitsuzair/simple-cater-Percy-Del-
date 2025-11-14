@@ -1182,7 +1182,7 @@
       }
 
       function filterAndDisplayRestaurants(resetPage = true) {
-        const filters = getSelectedFilters();
+        let filters = getSelectedFilters();
         let filtered = [...allRestaurants];
 
         // Filter by market (cities field)
@@ -1202,9 +1202,9 @@
         }
 
         // Extract unique cuisine and dietary IDs from filtered restaurants
-        // (before applying cuisine/dietary filters so dropdowns show all available options)
-        const availableCuisineIds = new Set();
-        const availableDietaryIds = new Set();
+        // (after market/region filters, before cuisine/dietary filters)
+        let availableCuisineIds = new Set();
+        let availableDietaryIds = new Set();
 
         filtered.forEach((restaurant) => {
           const cuisines = restaurant.fieldData?.["cusiness-category"] || [];
@@ -1219,8 +1219,12 @@
         });
 
         // Update cuisines and dietaries dropdowns to show only available options
+        // This will reset selections to "all" if current selection is not available
         populateCuisinesDropdown(availableCuisineIds);
         populateDietariesDropdown(availableDietaryIds);
+
+        // Re-read filters after dropdowns are updated (in case selections were reset)
+        filters = getSelectedFilters();
 
         // Filter by cuisine (cusiness-category field)
         if (filters.cuisineId) {
@@ -1230,6 +1234,19 @@
               Array.isArray(cuisines) && cuisines.includes(filters.cuisineId)
             );
           });
+
+          // After cuisine filter, re-extract available dietaries from cuisine-filtered results
+          availableDietaryIds = new Set();
+          filtered.forEach((restaurant) => {
+            const dietaries = restaurant.fieldData?.["dietary-category"] || [];
+            if (Array.isArray(dietaries)) {
+              dietaries.forEach((id) => availableDietaryIds.add(id));
+            }
+          });
+          // Update dietary dropdown with only dietaries available in cuisine-filtered results
+          populateDietariesDropdown(availableDietaryIds);
+          // Re-read filters after dietary dropdown is updated
+          filters = getSelectedFilters();
         }
 
         // Filter by dietary (dietary-category field)
@@ -1240,7 +1257,40 @@
               Array.isArray(dietaries) && dietaries.includes(filters.dietaryId)
             );
           });
+
+          // After dietary filter, re-extract available cuisines from dietary-filtered results
+          availableCuisineIds = new Set();
+          filtered.forEach((restaurant) => {
+            const cuisines = restaurant.fieldData?.["cusiness-category"] || [];
+            if (Array.isArray(cuisines)) {
+              cuisines.forEach((id) => availableCuisineIds.add(id));
+            }
+          });
+          // Update cuisine dropdown with only cuisines available in dietary-filtered results
+          populateCuisinesDropdown(availableCuisineIds);
+          // Re-read filters after cuisine dropdown is updated
+          filters = getSelectedFilters();
         }
+
+        // Final update: ensure both dropdowns reflect the final filtered results
+        // This handles cases where both filters are applied
+        const finalAvailableCuisineIds = new Set();
+        const finalAvailableDietaryIds = new Set();
+        filtered.forEach((restaurant) => {
+          const cuisines = restaurant.fieldData?.["cusiness-category"] || [];
+          const dietaries = restaurant.fieldData?.["dietary-category"] || [];
+          if (Array.isArray(cuisines)) {
+            cuisines.forEach((id) => finalAvailableCuisineIds.add(id));
+          }
+          if (Array.isArray(dietaries)) {
+            dietaries.forEach((id) => finalAvailableDietaryIds.add(id));
+          }
+        });
+        // Update both dropdowns to ensure they match final filtered results
+        populateCuisinesDropdown(finalAvailableCuisineIds);
+        populateDietariesDropdown(finalAvailableDietaryIds);
+        // Final re-read of filters
+        filters = getSelectedFilters();
 
         // Reset to page 1 when filters change (but not when just changing pages)
         if (resetPage) {
@@ -1421,7 +1471,7 @@
 
             dropdown.classList.remove("active");
 
-            // If market dropdown was changed, update regions dropdown
+            // If market dropdown was changed, update regions dropdown and reset filters
             if (dropdown.dataset.dropdown === "market") {
               const selectedValue = item.getAttribute("data-value");
               const selectedMarketName =
@@ -1452,11 +1502,17 @@
                   allRegionsItem.classList.add("selected");
                 }
               }
-            }
 
-            // Filter restaurants when any filter changes
-            if (allRestaurants.length > 0) {
-              filterAndDisplayRestaurants();
+              // Filter restaurants and update cuisines/dietaries dropdowns
+              // This will automatically reset cuisine/dietary selections if not available
+              if (allRestaurants.length > 0) {
+                filterAndDisplayRestaurants();
+              }
+            } else {
+              // Filter restaurants when any other filter changes
+              if (allRestaurants.length > 0) {
+                filterAndDisplayRestaurants();
+              }
             }
           });
         });
