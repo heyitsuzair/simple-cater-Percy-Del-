@@ -448,8 +448,14 @@
         return await fetchWebflowData(`/sites/${siteId}/collections`);
       }
 
-      async function getCollectionItems(collectionId) {
-        return await fetchWebflowData(`/collections/${collectionId}/items`);
+      async function getCollectionItems(collectionId, offset = 0, limit = 100) {
+        const params = new URLSearchParams({
+          offset: offset.toString(),
+          limit: limit.toString(),
+        });
+        return await fetchWebflowData(
+          `/collections/${collectionId}/items?${params.toString()}`
+        );
       }
 
       function createCardHTML(restaurant) {
@@ -512,6 +518,147 @@
             }
           </div>
         `;
+      }
+
+      // Store all regions globally
+      let allRegions = [];
+
+      // Helper function to parse region name and extract market
+      function parseRegionName(regionName) {
+        const match = regionName.match(/^(.+?)\s*\[(.+?)\]$/);
+        if (match) {
+          return {
+            displayName: match[1].trim(),
+            marketName: match[2].trim(),
+          };
+        }
+        return {
+          displayName: regionName,
+          marketName: null,
+        };
+      }
+
+      async function loadRegions() {
+        try {
+          // Step 1: Get sites
+          const sitesResponse = await getSites();
+          if (
+            !sitesResponse ||
+            !sitesResponse.sites ||
+            sitesResponse.sites.length === 0
+          ) {
+            throw new Error("No sites found");
+          }
+          const siteId = sitesResponse.sites[0].id;
+
+          // Step 2: Get collections
+          const collectionsResponse = await getCollections(siteId);
+          if (
+            !collectionsResponse ||
+            !collectionsResponse.collections ||
+            collectionsResponse.collections.length === 0
+          ) {
+            throw new Error("No collections found");
+          }
+
+          // Step 3: Find "Restaurants -> Regions" collection by ID or displayName
+          const regionsCollection = collectionsResponse.collections.find(
+            (col) =>
+              col.id === "689ab2ea1e098c7fa15d2353" ||
+              col.displayName === "Restaurants -> Regions"
+          );
+
+          if (!regionsCollection) {
+            console.warn("Restaurants -> Regions collection not found");
+            return;
+          }
+
+          // Step 4: Fetch all regions with pagination
+          allRegions = [];
+          let offset = 0;
+          const limit = 100;
+          let hasMore = true;
+
+          while (hasMore) {
+            const regionsResponse = await getCollectionItems(
+              regionsCollection.id,
+              offset,
+              limit
+            );
+
+            if (
+              !regionsResponse ||
+              !regionsResponse.items ||
+              regionsResponse.items.length === 0
+            ) {
+              hasMore = false;
+              break;
+            }
+
+            allRegions = allRegions.concat(regionsResponse.items);
+
+            // Check if there are more items to fetch
+            const pagination = regionsResponse.pagination;
+            if (
+              !pagination ||
+              offset + regionsResponse.items.length >= pagination.total
+            ) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
+          }
+
+          console.log(`Loaded ${allRegions.length} regions`);
+
+          // Step 5: Populate regions dropdown with all regions initially
+          populateRegionsDropdown();
+        } catch (error) {
+          console.error("Error loading regions:", error);
+        }
+      }
+
+      function populateRegionsDropdown(selectedMarketName = null) {
+        const regionsDropdown = document.querySelector(
+          '[data-dropdown="regions"] .dropdown-menu'
+        );
+        if (!regionsDropdown) {
+          console.warn("Regions dropdown not found");
+          return;
+        }
+
+        // Save "All Regions" option before clearing
+        const allRegionsOption =
+          regionsDropdown.querySelector('[data-value="all"]');
+        const allRegionsHTML = allRegionsOption
+          ? allRegionsOption.outerHTML
+          : '<div class="dropdown-item selected" data-value="all">All Regions</div>';
+
+        // Clear and rebuild dropdown
+        regionsDropdown.innerHTML = allRegionsHTML;
+
+        // Filter regions based on selected market
+        const filteredRegions = selectedMarketName
+          ? allRegions.filter((region) => {
+              const regionName = region.fieldData?.name || "";
+              const parsed = parseRegionName(regionName);
+              return parsed.marketName === selectedMarketName;
+            })
+          : allRegions;
+
+        // Add each region as a dropdown item
+        filteredRegions.forEach((region) => {
+          const regionName = region.fieldData?.name || "Region";
+          const parsed = parseRegionName(regionName);
+          const displayName = parsed.displayName;
+          const regionSlug = region.fieldData?.slug || region.id;
+
+          const regionItem = document.createElement("div");
+          regionItem.className = "dropdown-item";
+          regionItem.setAttribute("data-value", regionSlug);
+          regionItem.textContent = displayName;
+          regionsDropdown.appendChild(regionItem);
+        });
       }
 
       async function loadMarkets() {
@@ -589,6 +736,7 @@
             const marketItem = document.createElement("div");
             marketItem.className = "dropdown-item";
             marketItem.setAttribute("data-value", marketSlug);
+            marketItem.setAttribute("data-market-name", marketName);
             marketItem.textContent = marketName;
             marketDropdown.appendChild(marketItem);
           });
@@ -723,6 +871,39 @@
             button.textContent = item.textContent.trim();
 
             dropdown.classList.remove("active");
+
+            // If market dropdown was changed, update regions dropdown
+            if (dropdown.dataset.dropdown === "market") {
+              const selectedValue = item.getAttribute("data-value");
+              const selectedMarketName =
+                selectedValue === "all"
+                  ? null
+                  : item.getAttribute("data-market-name");
+              populateRegionsDropdown(selectedMarketName);
+
+              // Reset regions dropdown button text
+              const regionsButton = document.querySelector(
+                '[data-dropdown="regions"] .dropdown-button'
+              );
+              if (regionsButton) {
+                regionsButton.textContent = "Regions Available";
+              }
+
+              // Reset regions selection
+              const regionsMenu = document.querySelector(
+                '[data-dropdown="regions"] .dropdown-menu'
+              );
+              if (regionsMenu) {
+                const allRegionsItem =
+                  regionsMenu.querySelector('[data-value="all"]');
+                if (allRegionsItem) {
+                  regionsMenu
+                    .querySelectorAll(".dropdown-item")
+                    .forEach((i) => i.classList.remove("selected"));
+                  allRegionsItem.classList.add("selected");
+                }
+              }
+            }
           });
         });
       }
@@ -734,25 +915,13 @@
         initializeDropdownEvents();
         console.log("Dropdown events initialized");
 
-        // Load markets from Webflow CMS (will populate dropdown dynamically)
-        // Note: Restaurant loading is disabled until API is provided
-        loadMarkets()
+        // Load markets and regions from Webflow CMS
+        Promise.all([loadMarkets(), loadRegions()])
           .then(() => {
-            console.log("Markets loaded successfully");
-            // Re-check dropdown after markets are loaded
-            const marketDropdown = document.querySelector(
-              '[data-dropdown="market"]'
-            );
-            if (marketDropdown) {
-              console.log("Market dropdown found after load:", marketDropdown);
-              console.log(
-                "Has active class:",
-                marketDropdown.classList.contains("active")
-              );
-            }
+            console.log("Markets and regions loaded successfully");
           })
           .catch((error) => {
-            console.error("Failed to load markets:", error);
+            console.error("Failed to load markets/regions:", error);
           });
         // loadRestaurants(); // Disabled until restaurant API is ready
       });
