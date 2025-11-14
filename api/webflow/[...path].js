@@ -42,19 +42,20 @@ module.exports = async (req, res) => {
     const webflowPath =
       pathSegments.length > 0 ? `/${pathSegments.join("/")}` : "";
 
-    // Build the query string if present (excluding the path parameter)
-    const urlObj = new URL(req.url, `http://${req.headers.host}`);
-    const queryParams = new URLSearchParams();
-    urlObj.searchParams.forEach((value, key) => {
-      if (key !== "path") {
-        queryParams.append(key, value);
-      }
-    });
-    const queryString = queryParams.toString();
+    // Extract query string from URL (excluding path parameter)
+    const urlParts = req.url.split("?");
+    let queryString = "";
+    if (urlParts.length > 1) {
+      const params = new URLSearchParams(urlParts[1]);
+      params.delete("path"); // Remove path from query params
+      queryString = params.toString();
+    }
 
     const url = `${WEBFLOW_API_BASE}${webflowPath}${
       queryString ? `?${queryString}` : ""
     }`;
+
+    console.log(`[API] Proxying: ${req.url} -> ${url}`);
 
     const response = await fetch(url, {
       headers: {
