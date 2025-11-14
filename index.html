@@ -40,6 +40,10 @@
         z-index: 10;
       }
 
+      .dropdown.active {
+        z-index: 1001;
+      }
+
       .dropdown-button {
         width: 100%;
         padding: 12px 16px;
@@ -106,6 +110,10 @@
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         min-width: 100%;
         width: 100%;
+      }
+
+      .dropdown.active .dropdown-menu {
+        z-index: 1002;
       }
 
       .dropdown.active .dropdown-menu,
@@ -367,10 +375,24 @@
       @media (max-width: 768px) {
         .filters {
           flex-direction: column;
+          gap: 10px;
         }
 
         .dropdown {
           width: 100%;
+        }
+
+        .dropdown.active {
+          z-index: 1001;
+        }
+
+        .dropdown.active .dropdown-menu {
+          z-index: 1002;
+          position: fixed;
+          left: 20px;
+          right: 20px;
+          width: auto;
+          max-width: calc(100vw - 40px);
         }
 
         .cards-grid {
@@ -725,26 +747,32 @@
 
         cuisinesDropdown.innerHTML = allCuisinesHTML;
 
-        // Determine which cuisines to show
-        const cuisinesToShow =
-          availableCuisineIds && availableCuisineIds.size > 0
-            ? availableCuisineIds
-            : cuisinesMap.keys();
-
-        // Add each cuisine as a dropdown item (only if available or showing all)
-        cuisinesMap.forEach((name, id) => {
-          if (
-            !availableCuisineIds ||
-            availableCuisineIds.size === 0 ||
-            availableCuisineIds.has(id)
-          ) {
+        // Add each cuisine as a dropdown item (only if available)
+        // If availableCuisineIds is null, show all (initial state)
+        // If availableCuisineIds is empty Set, show only "All" (no restaurants)
+        // If availableCuisineIds has items, show only those items
+        if (availableCuisineIds === null) {
+          // Initial state: show all cuisines
+          cuisinesMap.forEach((name, id) => {
             const cuisineItem = document.createElement("div");
             cuisineItem.className = "dropdown-item";
             cuisineItem.setAttribute("data-value", id);
             cuisineItem.textContent = name;
             cuisinesDropdown.appendChild(cuisineItem);
-          }
-        });
+          });
+        } else if (availableCuisineIds.size > 0) {
+          // Show only available cuisines
+          cuisinesMap.forEach((name, id) => {
+            if (availableCuisineIds.has(id)) {
+              const cuisineItem = document.createElement("div");
+              cuisineItem.className = "dropdown-item";
+              cuisineItem.setAttribute("data-value", id);
+              cuisineItem.textContent = name;
+              cuisinesDropdown.appendChild(cuisineItem);
+            }
+          });
+        }
+        // If availableCuisineIds.size === 0, don't add any items (only "All" will show)
 
         // Restore selection if it still exists, otherwise select "All"
         const itemToSelect =
@@ -792,26 +820,32 @@
 
         dietariesDropdown.innerHTML = allDietariesHTML;
 
-        // Determine which dietaries to show
-        const dietariesToShow =
-          availableDietaryIds && availableDietaryIds.size > 0
-            ? availableDietaryIds
-            : dietariesMap.keys();
-
-        // Add each dietary as a dropdown item (only if available or showing all)
-        dietariesMap.forEach((name, id) => {
-          if (
-            !availableDietaryIds ||
-            availableDietaryIds.size === 0 ||
-            availableDietaryIds.has(id)
-          ) {
+        // Add each dietary as a dropdown item (only if available)
+        // If availableDietaryIds is null, show all (initial state)
+        // If availableDietaryIds is empty Set, show only "All" (no restaurants)
+        // If availableDietaryIds has items, show only those items
+        if (availableDietaryIds === null) {
+          // Initial state: show all dietaries
+          dietariesMap.forEach((name, id) => {
             const dietaryItem = document.createElement("div");
             dietaryItem.className = "dropdown-item";
             dietaryItem.setAttribute("data-value", id);
             dietaryItem.textContent = name;
             dietariesDropdown.appendChild(dietaryItem);
-          }
-        });
+          });
+        } else if (availableDietaryIds.size > 0) {
+          // Show only available dietaries
+          dietariesMap.forEach((name, id) => {
+            if (availableDietaryIds.has(id)) {
+              const dietaryItem = document.createElement("div");
+              dietaryItem.className = "dropdown-item";
+              dietaryItem.setAttribute("data-value", id);
+              dietaryItem.textContent = name;
+              dietariesDropdown.appendChild(dietaryItem);
+            }
+          });
+        }
+        // If availableDietaryIds.size === 0, don't add any items (only "All" will show)
 
         // Restore selection if it still exists, otherwise select "All"
         const itemToSelect =
@@ -1504,7 +1538,13 @@
               }
 
               // Filter restaurants and update cuisines/dietaries dropdowns
-              // This will automatically reset cuisine/dietary selections if not available
+              // This will automatically update both dropdowns based on market-filtered results
+              // and reset cuisine/dietary selections if not available in the new market
+              if (allRestaurants.length > 0) {
+                filterAndDisplayRestaurants();
+              }
+            } else if (dropdown.dataset.dropdown === "regions") {
+              // When region changes, also update cuisines/dietaries based on filtered results
               if (allRestaurants.length > 0) {
                 filterAndDisplayRestaurants();
               }
