@@ -352,41 +352,12 @@
 
         <div class="dropdown yellow" data-dropdown="cuisines">
           <button class="dropdown-button">Cuisines</button>
-          <div class="dropdown-menu">
-            <div class="dropdown-item selected" data-value="all">
-              All Cuisines
-            </div>
-            <div class="dropdown-item" data-value="lunch">Lunch Box</div>
-            <div class="dropdown-item" data-value="breakfast">Breakfast</div>
-            <div class="dropdown-item" data-value="early">Early Breakfast</div>
-            <div class="dropdown-item" data-value="sandwiches">Sandwiches</div>
-            <div class="dropdown-item" data-value="mediterranean">
-              Mediterranean
-            </div>
-            <div class="dropdown-item" data-value="latin">Latin</div>
-            <div class="dropdown-item" data-value="asian">Asian</div>
-            <div class="dropdown-item" data-value="italian">Italian</div>
-          </div>
+          <div class="dropdown-menu"></div>
         </div>
 
         <div class="dropdown yellow" data-dropdown="dietary">
           <button class="dropdown-button">Dietary Preference</button>
-          <div class="dropdown-menu">
-            <div class="dropdown-item selected" data-value="all">
-              All Preferences
-            </div>
-            <div class="dropdown-item" data-value="vegetarian">Vegetarian</div>
-            <div class="dropdown-item" data-value="vegan">Vegan</div>
-            <div class="dropdown-item" data-value="gluten-free">
-              Gluten-Free
-            </div>
-            <div class="dropdown-item" data-value="keto">Keto-Friendly</div>
-            <div class="dropdown-item" data-value="low-carb">Low-Carb</div>
-            <div class="dropdown-item" data-value="plant-based">
-              Plant-Based
-            </div>
-            <div class="dropdown-item" data-value="halal">Halal</div>
-          </div>
+          <div class="dropdown-menu"></div>
         </div>
       </div>
 
@@ -846,6 +817,16 @@
           button.addEventListener("click", function (e) {
             e.stopPropagation();
             e.preventDefault();
+
+            // Close all other dropdowns first
+            const allDropdowns = document.querySelectorAll(".dropdown");
+            allDropdowns.forEach((otherDropdown) => {
+              if (otherDropdown !== dropdown) {
+                otherDropdown.classList.remove("active");
+              }
+            });
+
+            // Toggle current dropdown
             dropdown.classList.toggle("active");
           });
 
@@ -914,6 +895,18 @@
         // Initialize dropdown functionality first (event delegation will handle dynamic items)
         initializeDropdownEvents();
         console.log("Dropdown events initialized");
+
+        // Close all dropdowns when clicking outside
+        document.addEventListener("click", function (e) {
+          // Check if click is outside any dropdown
+          const clickedDropdown = e.target.closest(".dropdown");
+          if (!clickedDropdown) {
+            const allDropdowns = document.querySelectorAll(".dropdown");
+            allDropdowns.forEach((dropdown) => {
+              dropdown.classList.remove("active");
+            });
+          }
+        });
 
         // Load markets and regions from Webflow CMS
         Promise.all([loadMarkets(), loadRegions()])
