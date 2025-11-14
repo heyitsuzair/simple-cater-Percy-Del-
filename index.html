@@ -151,6 +151,59 @@
         gap: 20px;
       }
 
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 40px;
+        margin-bottom: 40px;
+      }
+
+      .pagination-button {
+        min-width: 40px;
+        height: 40px;
+        padding: 0 12px;
+        border: 1px solid;
+        background-color: #f5f5f5;
+        border-color: #125f43;
+        color: #333;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-family: inherit;
+      }
+
+      .pagination-button:hover {
+        opacity: 0.8;
+      }
+
+      .pagination-button.prev,
+      .pagination-button.next {
+        background-color: #e5dc84;
+        border-color: #e5dc84;
+      }
+
+      .pagination-button.active {
+        background-color: #125f4333;
+        border-color: #125f43;
+        color: #125f43;
+      }
+
+      .pagination-button.ellipsis {
+        border: none;
+        background-color: transparent;
+        cursor: default;
+      }
+
+      .pagination-button.ellipsis:hover {
+        opacity: 1;
+      }
+
       .card {
         background-color: #125f430d;
         border: 1px solid #125f43;
@@ -1491,6 +1544,18 @@
             <div class="card-dietary">Vegetarian, Plant-Based</div>
           </div>
         </div>
+      </div>
+
+      <div class="pagination">
+        <button class="pagination-button prev">&lt;</button>
+        <button class="pagination-button active">1</button>
+        <button class="pagination-button">2</button>
+        <button class="pagination-button">3</button>
+        <button class="pagination-button">4</button>
+        <button class="pagination-button">5</button>
+        <button class="pagination-button ellipsis">...</button>
+        <button class="pagination-button">44</button>
+        <button class="pagination-button next">&gt;</button>
       </div>
     </div>
 
