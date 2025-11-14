@@ -4,16 +4,12 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "api/webflow/[...path].js",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/webflow/(.*)",
-      "dest": "/api/webflow/$1"
+      "dest": "/api/webflow/[...path]"
     },
     {
       "src": "/(.*)",

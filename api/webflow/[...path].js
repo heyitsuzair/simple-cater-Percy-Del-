@@ -25,21 +25,35 @@ module.exports = async (req, res) => {
 
   try {
     // Get the path from the catch-all route
-    const path = req.query.path || [];
-    const webflowPath = Array.isArray(path) ? `/${path.join("/")}` : `/${path}`;
+    // In Vercel, the path segments are in req.query.path as an array
+    let pathSegments = req.query.path;
 
-    // Build the query string if present
-    const queryString = req.url.includes("?")
-      ? req.url.substring(req.url.indexOf("?"))
-      : "";
-    // Remove the path parameter from query string
-    const cleanQueryString = queryString
-      .split("&")
-      .filter((param) => !param.startsWith("path="))
-      .join("&");
+    // Handle different path formats
+    if (Array.isArray(pathSegments)) {
+      pathSegments = pathSegments.filter(Boolean); // Remove empty segments
+    } else if (pathSegments) {
+      pathSegments = [pathSegments];
+    } else {
+      // Fallback: extract from URL
+      const urlPath = req.url.replace("/api/webflow", "").split("?")[0];
+      pathSegments = urlPath.split("/").filter(Boolean);
+    }
+
+    const webflowPath =
+      pathSegments.length > 0 ? `/${pathSegments.join("/")}` : "";
+
+    // Build the query string if present (excluding the path parameter)
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const queryParams = new URLSearchParams();
+    urlObj.searchParams.forEach((value, key) => {
+      if (key !== "path") {
+        queryParams.append(key, value);
+      }
+    });
+    const queryString = queryParams.toString();
 
     const url = `${WEBFLOW_API_BASE}${webflowPath}${
-      cleanQueryString ? `?${cleanQueryString.replace(/^\?/, "")}` : ""
+      queryString ? `?${queryString}` : ""
     }`;
 
     const response = await fetch(url, {
