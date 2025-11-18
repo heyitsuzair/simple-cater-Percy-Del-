@@ -240,8 +240,11 @@
         background-color: #125f430d;
         border: 1px solid #125f43;
         border-radius: 8px;
-        padding: 20px;
+        padding: 0;
         transition: transform 0.2s, box-shadow 0.2s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
 
       .card:hover {
@@ -249,10 +252,24 @@
         box-shadow: 0 4px 12px rgba(18, 95, 67, 0.15);
       }
 
+      .card-image {
+        width: 92%;
+        height: 158px;
+        object-fit: cover;
+        display: block;
+        border-radius: 8px;
+        margin: 1rem auto;
+        margin-bottom: 0;
+      }
+
+      .card-content {
+        padding: 20px;
+      }
+
       .card-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         margin-bottom: 16px;
       }
 
@@ -602,8 +619,18 @@
 
         const dietaryText = dietaryNames.join(", ");
 
+        // Get image URL if available
+        const imageUrl = restaurant.fieldData?.image?.url || null;
+        const imageAlt = restaurant.fieldData?.image?.alt || name;
+
         return `
           <div class="card">
+            ${
+              imageUrl
+                ? `<img src="${imageUrl}" alt="${imageAlt}" class="card-image" />`
+                : ""
+            }
+            <div class="card-content">
             <div class="card-header">
               <div class="card-name">${name}</div>
               <div class="card-price">${price}</div>
@@ -631,11 +658,12 @@
                 ${leafIconSVG}
                 Dietary:
               </div>
-              <div class="card-dietary">${dietaryText}</div>
+                <div class="card-dietary">${dietaryText}</div>
             </div>
             `
                 : ""
             }
+            </div>
           </div>
         `;
       }
