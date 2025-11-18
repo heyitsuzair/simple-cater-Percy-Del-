@@ -535,11 +535,26 @@
         return await fetchWebflowData(`/sites/${siteId}/collections`);
       }
 
-      async function getCollectionItems(collectionId, offset = 0, limit = 100) {
+      async function getCollectionItems(
+        collectionId,
+        offset = 0,
+        limit = 100,
+        sortBy = null,
+        sortOrder = "asc"
+      ) {
         const params = new URLSearchParams({
           offset: offset.toString(),
           limit: limit.toString(),
         });
+        if (sortBy) {
+          params.append("sortBy", sortBy);
+          // Always include sortOrder when sortBy is provided
+          if (sortOrder === "asc" || sortOrder === "desc") {
+            params.append("sortOrder", sortOrder);
+          } else {
+            params.append("sortOrder", "asc"); // Default to asc if invalid
+          }
+        }
         return await fetchWebflowData(
           `/collections/${collectionId}/items?${params.toString()}`
         );
@@ -1165,7 +1180,9 @@
             const response = await getCollectionItems(
               restaurantsCollection.id,
               offset,
-              limit
+              limit,
+              "name", // Sort by restaurant name
+              "asc" // Sort order: A to Z
             );
 
             if (!response?.items?.length) {
@@ -1362,6 +1379,13 @@
         populateDietariesDropdown(finalAvailableDietaryIds);
         // Final re-read of filters
         filters = getSelectedFilters();
+
+        // Sort restaurants by name A to Z
+        filtered.sort((a, b) => {
+          const nameA = (a.fieldData?.name || "").toLowerCase();
+          const nameB = (b.fieldData?.name || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
 
         // Reset to page 1 when filters change (but not when just changing pages)
         if (resetPage) {
