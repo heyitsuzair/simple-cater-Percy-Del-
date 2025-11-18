@@ -1218,16 +1218,38 @@
               break;
             }
 
-            // Add new items to the array
-            allRestaurants = allRestaurants.concat(response.items);
+            // Filter to only include published restaurants
+            // Published = isDraft: false AND lastPublished exists (not null)
+            // Exclude: Draft (isDraft: true, lastPublished: null)
+            // Exclude: Draft changes (isDraft: true, lastPublished: exists)
+            // Exclude: Queued to publish (isDraft: false, lastPublished: null)
+            const publishedItems = response.items.filter((item) => {
+              // Exclude if isDraft is true (any truthy value or string "true")
+              if (
+                item.isDraft === true ||
+                item.isDraft === "true" ||
+                Boolean(item.isDraft) === true
+              ) {
+                return false;
+              }
+
+              // Exclude if lastPublished is null or undefined
+              if (
+                item.lastPublished === null ||
+                item.lastPublished === undefined
+              ) {
+                return false;
+              }
+
+              // Only include if isDraft is explicitly false and lastPublished exists
+              return item.isDraft === false && item.lastPublished !== null;
+            });
+
+            // Add only published items to the array
+            allRestaurants = allRestaurants.concat(publishedItems);
 
             // Display restaurants immediately after each batch (streaming)
             filterAndDisplayRestaurants();
-
-            // Log progress
-            console.log(
-              `Loaded ${allRestaurants.length} restaurants (batch of ${response.items.length})`
-            );
 
             const pagination = response.pagination;
             if (
@@ -1241,8 +1263,6 @@
               await delay(1000);
             }
           }
-
-          console.log(`Finished loading ${allRestaurants.length} restaurants`);
         } catch (error) {
           console.error("Error loading restaurants:", error);
           const cardsGrid = document.getElementById("cards-grid");
